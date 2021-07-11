@@ -101,7 +101,7 @@ import axios from "axios";
 
 export default {
   setup() {
-    const weatherApiKey = "068578c46d8d37243d746e79790a94ac";
+    const weatherApiKey = "secret";
     const inputCity = ref("");
     const cityFound = ref(false);
 
