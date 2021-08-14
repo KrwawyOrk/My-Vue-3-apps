@@ -78,6 +78,9 @@
         </div>
         <div class="border rounded-2xl shadow-xl px-10 py-10 mx-3 bg-white">
           <div class="font-light">
+            <h1 v-if="weatherData.description">
+              Description: {{ weatherData.description }}
+              </h1>
             <h1 v-if="weatherData.temperatureFellsLike">
               Feels like: {{ weatherData.temperatureFellsLike
               }}<span>&#8451;</span>
@@ -101,7 +104,7 @@ import axios from "axios";
 
 export default {
   setup() {
-    const weatherApiKey = "secret";
+    const weatherApiKey = "068578c46d8d37243d746e79790a94ac";
     const inputCity = ref("");
     const cityFound = ref(false);
 
@@ -112,11 +115,12 @@ export default {
       temperatureFellsLike: "",
       temperatureMin: "",
       temperatureMax: "",
+      description: "",
       iconUrl: "",
     });
 
-    const getWeather = () => {
-      axios
+     async function getWeather() {
+      await axios
         .get(
           `https://api.openweathermap.org/data/2.5/weather?q=${inputCity.value}&appid=${weatherApiKey}&units=metric`
         )
@@ -136,13 +140,14 @@ export default {
           ref.temperatureFellsLike = parseInt(main.feels_like);
           ref.temperatureMin = main.temp_min;
           ref.temperatureMax = main.temp_max;
+          ref.description = weather[0].description;
           ref.iconUrl = `https://openweathermap.org/img/w/${weather[0].icon}.png`;
         })
         .finally(() => {
           inputCity.value = "";
           cityFound.value = true;
         });
-    };
+    }
 
     return {
       cityFound,
