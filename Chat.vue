@@ -1,9 +1,15 @@
 <template>
-  <section
-    v-if="userLoggedIn"
-    class="flex mx-auto"
-  >
-    <div class="chat-window flex flex-col p-2 bg-gray-50 border max-w-screen-md max-h-screen">
+  <section v-if="userLoggedIn" class="flex mx-auto">
+    <div
+      class="
+        chat-window
+        flex flex-col
+        p-2
+        bg-gray-50
+        border
+        max-w-screen-md max-h-screen
+      "
+    >
       <div class="px-3 mb-2 rounded" style="background-color: #e46b1b">
         <h1 class="text-lg text-white font-bold">
           Hello, <i>{{ userEmailAdress }}</i>
@@ -22,7 +28,7 @@
             mr-1
             rounded
             text-sm
-             h-10
+            h-10
           "
         >
           Get advice message
@@ -70,7 +76,7 @@
         <transition-group name="messages-list">
           <div
             v-for="chat in state.chats"
-            :key="chat.message"
+            :key="chat.key"
             class="my-3 p-2 w-7/12 rounded-3xl border relative"
             :class="
               userEmailAdress === chat.userEmail
@@ -99,7 +105,7 @@
               <div class="relative">
                 <button
                   v-if="userEmailAdress === chat.userEmail"
-                  @click="thumbUpMessage(chat.id)"
+                  @click="thumbUpMessage(chat.key)"
                   class="
                     absolute
                     -top-1
@@ -120,7 +126,7 @@
                 </button>
                 <button
                   v-else
-                  @click="thumbUpMessage(chat.id)"
+                  @click="thumbUpMessage(chat.key)"
                   class="
                     absolute
                     -top-1
@@ -149,7 +155,16 @@
         <input
           v-model="inputMessage"
           @keyup.enter="appendMessage"
-          class="w-10/12 py-2 px-2 border rounded-l-md shadow bg-gray-200 focus:outline-none"
+          class="
+            w-10/12
+            py-2
+            px-2
+            border
+            rounded-l-md
+            shadow
+            bg-gray-200
+            focus:outline-none
+          "
           :placeholder="inputMessage ? '' : 'Write something in the chat room'"
         />
         <button
@@ -173,7 +188,7 @@
 
 <script>
 import { useStore } from "vuex";
-import { onMounted, ref, reactive, computed, nextTick, watchEffect } from "vue";
+import { onMounted, ref, reactive, computed, watchEffect, nextTick } from "vue";
 
 import router from "../router.js";
 import firebase from "../utilities/firebase";
@@ -181,8 +196,6 @@ import axios from "axios";
 
 export default {
   setup() {
-    const store = useStore();
-
     const inputMessage = ref("");
 
     const state = reactive({
@@ -190,33 +203,21 @@ export default {
       showEmailInMessage: true,
     });
 
+    const store = useStore();
     const userId = computed(() => store.state.authUser.uid);
     const userLoggedIn = computed(() => store.state.isLoggedIn);
     const userEmailAdress = computed(() => store.state.authUser.email);
 
-    onMounted(async () => {
-      const db = firebase.database();
-      const chatsRef = db.ref("chats");
-      const data = await chatsRef.once("value");
+    onMounted(() => {
+      const chatsRef = firebase.database().ref("chats/global");
 
-      state.chats = data.val();
+      chatsRef.on("child_changed", snapshot => {   
+        const msgRef = state.chats.find(element => element.key === snapshot.key);
+        msgRef.thumbUp = snapshot.val().thumbUp;
+      });
 
-      chatsRef.on("value", (snapshot) => {
-        const data = snapshot.val();
-        let chats = [];
-
-        Object.keys(data).forEach((key) => {
-          chats.push({
-            id: key,
-            message: data[key].message,
-            sendedTime: data[key].sendedTime,
-            userEmail: data[key].userEmail,
-            userId: data[key].userId,
-            thumbUp: data[key].thumbUp,
-          });
-        });
-
-        state.chats = chats;
+      chatsRef.on("child_added", (snapshot) => {
+        state.chats.push({ key: snapshot.key, ...snapshot.val() });
 
         nextTick(() => {
           scrollDownAfterAppendMessage();
@@ -230,22 +231,26 @@ export default {
       }
     });
 
+    function thumbUpMessage(id) {
+        const msgRef = firebase.database().ref("chats/global").child(id).child('thumbUp');
+        msgRef.transaction( thumb => !thumb);
+      }
+      
     function appendMessage() {
       if (inputMessage.value === "") {
         return;
       }
 
-      const chatsRef = firebase.database().ref("chats");
+      const newChat = firebase.database().ref("chats/global").push();
 
-      const msg = {
+      newChat.set({
         userEmail: this.userEmailAdress,
         userId: this.userId,
         message: inputMessage.value,
         sendedTime: getCurrentHourAndMinutesToString(),
         thumbUp: false,
-      };
+      });
 
-      chatsRef.push(msg);
       inputMessage.value = "";
     }
 
@@ -269,13 +274,9 @@ export default {
       return dateString;
     }
 
-    function thumbUpMessage(id) {
-      const msg = firebase.database().ref("chats").child(id).child("thumbUp");
-      msg.transaction((thumbUp) => !thumbUp);
-    }
 
-    function getRandomAdvice() {
-      axios.get("https://api.adviceslip.com/advice").then((response) => {
+    async function getRandomAdvice() {
+      await axios.get("https://api.adviceslip.com/advice").then((response) => {
         const {
           data: {
             slip: { advice },
