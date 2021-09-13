@@ -162,17 +162,22 @@ export default {
 <style>
 .weather-animation {
   animation-name: show_weather_data;
-  animation-duration: 0.5s;
-  animation-timing-function: ease-out;
+  animation-duration: 0.4s;
+  animation-timing-function: ease-in-out;
 }
 
 @keyframes show_weather_data {
-  from {
+  0% {
     opacity: 0;
-    transform: translate(-100%, 0);
+    transform: translate(-50%, 0);
   }
 
-  to {
+  50% {
+    opacity: 0.5;
+    
+  }
+
+  100% {
     opacity: 1;
     transform: translate(0, 0);
   }
