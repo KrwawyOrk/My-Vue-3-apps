@@ -7,13 +7,15 @@
         p-2
         bg-gray-50
         border
-        max-w-screen-md max-h-screen
+        max-w-screen max-h-screen
+        sm:max-w-screen-md
       "
     >
       <div class="px-3 mb-2 rounded" style="background-color: #e46b1b">
         <h1 class="text-lg text-white font-bold">
           Hello, <i>{{ userEmailAdress }}</i>
         </h1>
+        <h1 class="text-xs text-white mb-2">Current chat: {{ state.currentChatRoom }}</h1>
       </div>
       <div class="flex justify-between">
         <button
@@ -23,32 +25,30 @@
             hover:bg-blue-700
             text-white
             font-bold
-            py-1
+            py-2
             px-4
             mr-1
             rounded
             text-sm
-            h-10
           "
         >
-          Get advice message
+          <i class="fas fa-comments fa-2x mx-1"></i>Get advice message
         </button>
         <button
-          @click="scrollDownAfterAppendMessage"
+          @click="changeChatRoom"
           class="
             bg-blue-500
             hover:bg-blue-700
             text-white
             font-bold
-            py-1
+            py-2
             px-4
             mx-1
             rounded
             text-sm
-            h-10
           "
         >
-          Scroll down
+          Change room
         </button>
         <button
           @click="leaveChat"
@@ -57,12 +57,11 @@
             hover:bg-yellow-700
             text-white
             font-bold
-            py-1
+            py-2
             px-4
             ml-1
             rounded
             text-sm
-            h-10
           "
         >
           Leave chat
@@ -201,6 +200,7 @@ export default {
     const state = reactive({
       chats: [],
       showEmailInMessage: true,
+      currentChatRoom: "global",
     });
 
     const store = useStore();
@@ -208,11 +208,15 @@ export default {
     const userLoggedIn = computed(() => store.state.isLoggedIn);
     const userEmailAdress = computed(() => store.state.authUser.email);
 
-    onMounted(() => {
-      const chatsRef = firebase.database().ref("chats/global");
+    onMounted(async () => {
+      const chatsRef = firebase
+        .database()
+        .ref(`chats/${state.currentChatRoom}`);
 
-      chatsRef.on("child_changed", snapshot => {   
-        const msgRef = state.chats.find(element => element.key === snapshot.key);
+      chatsRef.on("child_changed", (snapshot) => {
+        const msgRef = state.chats.find(
+          (element) => element.key === snapshot.key
+        );
         msgRef.thumbUp = snapshot.val().thumbUp;
       });
 
@@ -232,16 +236,23 @@ export default {
     });
 
     function thumbUpMessage(id) {
-        const msgRef = firebase.database().ref("chats/global").child(id).child('thumbUp');
-        msgRef.transaction( thumb => !thumb);
-      }
-      
+      const msgRef = firebase
+        .database()
+        .ref(`chats/${state.currentChatRoom}`)
+        .child(id)
+        .child("thumbUp");
+      msgRef.transaction((thumb) => !thumb);
+    }
+
     function appendMessage() {
       if (inputMessage.value === "") {
         return;
       }
 
-      const newChat = firebase.database().ref("chats/global").push();
+      const newChat = firebase
+        .database()
+        .ref(`chats/${state.currentChatRoom}`)
+        .push();
 
       newChat.set({
         userEmail: this.userEmailAdress,
@@ -254,12 +265,31 @@ export default {
       inputMessage.value = "";
     }
 
-    function showUserEmails() {
-      state.showEmailInMessage = !state.showEmailInMessage;
-    }
-
     function leaveChat() {
       firebase.auth().signOut();
+    }
+
+    async function changeChatRoom() {
+      console.log("Changing chat room....");
+
+      if(state.currentChatRoom == "global") {
+        state.currentChatRoom = "advices";
+        const newChat = await firebase
+          .database()
+          .ref(`chats/${state.currentChatRoom}`)
+          .get();
+        state.chats = newChat.val();
+      }
+
+      else if(state.currentChatRoom == "advices") {
+        state.currentChatRoom = "global";
+        const newChat = await firebase
+          .database()
+          .ref(`chats/${state.currentChatRoom}`)
+          .get();
+        state.chats = newChat.val();
+      }
+
     }
 
     function scrollDownAfterAppendMessage() {
@@ -274,27 +304,29 @@ export default {
       return dateString;
     }
 
-
     async function getRandomAdvice() {
-      await axios.get("https://api.adviceslip.com/advice").then((response) => {
-        const {
-          data: {
-            slip: { advice },
-          },
-        } = response;
+      await axios
+        .get("https://api.adviceslip.com/advice")
+        .then((response) => {
+          const {
+            data: {
+              slip: { advice },
+            },
+          } = response;
 
-        inputMessage.value = advice;
-      });
+          inputMessage.value = advice;
+        })
+        .finally(() => {
+          console.log("I got an advice!");
+        });
     }
 
     return {
       state,
       leaveChat,
-      showUserEmails,
+      changeChatRoom,
       appendMessage,
       inputMessage,
-      scrollDownAfterAppendMessage,
-      getCurrentHourAndMinutesToString,
       userId,
       userEmailAdress,
       userLoggedIn,
